@@ -1,0 +1,6 @@
+controlling file to operate a ur5e robot arm in webots
+
+future work on:
+  * realize good mapping of robot arm and human arm
+    * 1. 整体臂展长度有限制，我做映射的时候没有考虑三维的情况，而是直接搭建了在一维条件下足够长度的映射；
+    * 2. 机械臂的伸缩虽然是一个相对尺度，但是应该不是均匀映射的，这里之后还得继续调整
