@@ -163,18 +163,20 @@ def preprocess_data_test(directory, keyframe):
 
 # ---------------------------------- 数据增强 ----------------------------------
 
-# functions for data augmentation
+# 加噪声
 def add_noise(points, sigma=0.01):
     points_np = np.array(points)
     noise = np.random.normal(0, sigma, points_np.shape)
     return points_np + noise
 
+# 放大缩小
 def scale(points, scale_factor=None):
     points_np = np.array(points)
     if scale_factor is None:
         scale_factor = np.random.uniform(0.9, 1.1)
     return points_np * scale_factor
 
+# 旋转
 def rotate(points, degree_range=10):
     points_np = np.array(points)
     
@@ -206,6 +208,7 @@ def rotate(points, degree_range=10):
     rotation_matrix = np.dot(rotation_matrix_z, np.dot(rotation_matrix_y, rotation_matrix_x))
     return np.dot(points_np, rotation_matrix.T)
 
+# 移动
 def translate(points, max_translation=0.1):
     points_np = np.array(points)
     
@@ -215,6 +218,7 @@ def translate(points, max_translation=0.1):
     dx, dy, dz = np.random.uniform(-max_translation, max_translation, 3)
     return points_np + np.array([dx, dy, dz])
 
+# 增强某个动作
 def augment_single_action(action, times=5):
     """
     对单一动作数据进行多次增强。
@@ -240,6 +244,7 @@ def augment_single_action(action, times=5):
     
     return augmented_actions
 
+# 增强数据集
 def augment_data_and_labels(data, labels, times=5):
     """
     对整个数据集和标签进行多次增强。
@@ -362,7 +367,6 @@ def train_model(model, criterion, optimizer, train_loader, val_loader, num_epoch
     # Load best model weights
     model.load_state_dict(best_model)
     return model
-
 
 
 # body part code

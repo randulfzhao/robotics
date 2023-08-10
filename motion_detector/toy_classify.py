@@ -162,7 +162,7 @@ def preprocess_data_test(directory, keyframe):
 
 # ---------------------------------- 数据增强 ----------------------------------
 
-# 加噪
+# 加噪声
 def add_noise(points, sigma=0.01):
     points_np = np.array(points)
     noise = np.random.normal(0, sigma, points_np.shape)
@@ -207,7 +207,7 @@ def rotate(points, degree_range=10):
     rotation_matrix = np.dot(rotation_matrix_z, np.dot(rotation_matrix_y, rotation_matrix_x))
     return np.dot(points_np, rotation_matrix.T)
 
-# 平移
+# 移动
 def translate(points, max_translation=0.1):
     points_np = np.array(points)
     
@@ -217,6 +217,7 @@ def translate(points, max_translation=0.1):
     dx, dy, dz = np.random.uniform(-max_translation, max_translation, 3)
     return points_np + np.array([dx, dy, dz])
 
+# 增强某个动作
 def augment_single_action(action, times=5):
     """
     对单一动作数据进行多次增强。
@@ -242,6 +243,7 @@ def augment_single_action(action, times=5):
     
     return augmented_actions
 
+# 增强数据集
 def augment_data_and_labels(data, labels, times=5):
     """
     对整个数据集和标签进行多次增强。
@@ -271,13 +273,18 @@ def augment_data_and_labels(data, labels, times=5):
 class ActionClassifier(nn.Module):
     def __init__(self, input_dim, hidden_dim, output_dim, num_layers):
         super(ActionClassifier, self).__init__()
-        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True)
+        self.hidden_dim = hidden_dim
+        self.lstm = nn.LSTM(input_size=63, hidden_size=hidden_dim, num_layers=num_layers, batch_first=True)
         self.fc = nn.Linear(hidden_dim, output_dim)
-    
+
     def forward(self, x):
+        # Reshape the input tensor 
+        x = x.view(x.size(0), x.size(1), -1)
+        
         out, _ = self.lstm(x)
         out = self.fc(out[:, -1, :])
         return out
+
 
 # 检测输入数据的结构是否符合预设
 def check_shape(data, desired_shape):
@@ -301,6 +308,7 @@ def check_shape(data, desired_shape):
 
 
 # ----------------------------- 模型训练与评估函数 ------------------------------
+
 # 检测错误分类的结果
 def get_wrongly_classified_info(outputs, labels):
     _, predicted = torch.max(outputs.data, 1)
@@ -390,9 +398,10 @@ if __name__ == "__main__":
     NUM_LAYERS = 2
     NUM_EPOCHS = 50
     BATCH_SIZE = 64
+    OUTPUT_DIM = None
     EARLY_STOP_PATIENCE = 10
     LEARNING_RATE = 0.001
-
+    
     # GPU setup
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -400,6 +409,7 @@ if __name__ == "__main__":
     directory = 'excel'
 
     data, labels, keyframe = preprocess_data(directory)
+    data, labels = augment_data_and_labels(data, labels, times=15)
     train_data, val_data, train_labels, val_labels = split_data_for_training(data, labels)
 
     # Encoding labels
@@ -407,6 +417,8 @@ if __name__ == "__main__":
     label_to_int = {label: i for i, label in enumerate(unique_labels)}
     int_to_label = {i: label for label, i in label_to_int.items()}
     OUTPUT_DIM = len(label_to_int)  # Number of classes
+    # 打印编码情况
+    print(label_to_int)
 
     encoded_train_labels = [label_to_int[label] for label in train_labels]
     encoded_val_labels = [label_to_int[label] for label in val_labels]
@@ -426,6 +438,7 @@ if __name__ == "__main__":
 
     # Initialize model, criterion, and optimizer
     model = ActionClassifier(INPUT_DIM, HIDDEN_DIM, OUTPUT_DIM, NUM_LAYERS).to(device)
+    # model = ActionClassifier(INPUT_DIM, HIDDEN_DIM, OUTPUT_DIM, NUM_LAYERS)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
