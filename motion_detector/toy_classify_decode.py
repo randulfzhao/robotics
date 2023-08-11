@@ -1,15 +1,25 @@
 import os
 import ast
 import torch
+import pickle
 import numpy as np
 import pandas as pd
 import torch.nn as nn
 import torch.optim as optim
 from sklearn.model_selection import train_test_split
 from torch.utils.data import TensorDataset, DataLoader
+from models import ActionClassifier,TrajectoryModel
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
 # ---------------------------------- 数据预处理 ----------------------------------
+
+"""
+data 格式：
+* $data$: dataset of actions，共15个action
+* $data[i]$: $i^{th}$ action，有230个关键帧
+* $data[i][j]$: $j^{th}$ keyframe of $i^{th}$ action，有21个关键点
+* $data[i][j][k]$: the $k^{th}$ key point's information for the $j^{th}$ keyframe of $i^{th}$ action，三维坐标
+"""
 
 # functions for data preprocessing
 def get_label_from_filename(filename):
@@ -131,7 +141,6 @@ def preprocess_data_test(directory, keyframe):
         label = label.split("_")[-1]
         processed_labels.append(label)
 
-
     for idx, df in enumerate(processed_data):
         # Convert df to a nested list
         df_list = df.values.tolist()
@@ -157,8 +166,23 @@ def preprocess_data_test(directory, keyframe):
 
         processed_data[idx] = new_df_list
 
-
     return processed_data, processed_labels
+
+# save and load encoded labels
+def save_label_dicts(label_to_encoded, encoded_to_label, save_dir="saved_dicts"):
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+    with open(os.path.join(save_dir, 'label_to_encoded.pkl'), 'wb') as f:
+        pickle.dump(label_to_encoded, f)
+    with open(os.path.join(save_dir, 'encoded_to_label.pkl'), 'wb') as f:
+        pickle.dump(encoded_to_label, f)
+
+def load_label_dicts(save_dir="saved_dicts"):
+    with open(os.path.join(save_dir, 'label_to_encoded.pkl'), 'rb') as f:
+        label_to_encoded = pickle.load(f)
+    with open(os.path.join(save_dir, 'encoded_to_label.pkl'), 'rb') as f:
+        encoded_to_label = pickle.load(f)
+    return label_to_encoded, encoded_to_label
 
 # ---------------------------------- 数据增强 ----------------------------------
 
@@ -269,23 +293,6 @@ def augment_data_and_labels(data, labels, times=5):
 
 # ---------------------------- 模型定义及训练工具函数 ----------------------------
 
-# 定义LSTM模型：LSTM架构的浅层RNN
-class ActionClassifier(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, num_layers):
-        super(ActionClassifier, self).__init__()
-        self.hidden_dim = hidden_dim
-        self.lstm = nn.LSTM(input_size=63, hidden_size=hidden_dim, num_layers=num_layers, batch_first=True)
-        self.fc = nn.Linear(hidden_dim, output_dim)
-
-    def forward(self, x):
-        # Reshape the input tensor 
-        x = x.view(x.size(0), x.size(1), -1)
-        
-        out, _ = self.lstm(x)
-        out = self.fc(out[:, -1, :])
-        return out
-
-
 # 检测输入数据的结构是否符合预设
 def check_shape(data, desired_shape):
     # 每个动作的关键帧长度是否相同
@@ -389,11 +396,135 @@ def evaluate_model(model, test_loader, device):
     return 100 * correct / total
 
 
+# ---------------------------- 分类器训练 & 测试函数 -----------------------------
+
+def train_classifier(data, labels, classify_model_path):
+    # train-val split
+    train_data, val_data, train_labels, val_labels = split_data_for_training(data, labels)
+
+    # Convert data to tensor
+    train_data_tensor = torch.tensor(train_data, dtype=torch.float32)
+    train_labels_tensor = torch.tensor(train_labels, dtype=torch.long)
+    val_data_tensor = torch.tensor(val_data, dtype=torch.float32)
+    val_labels_tensor = torch.tensor(val_labels, dtype=torch.long)
+
+    # Create dataloaders
+    train_dataset = TensorDataset(train_data_tensor, train_labels_tensor)
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+
+    val_dataset = TensorDataset(val_data_tensor, val_labels_tensor)
+    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
+
+    # Initialize classify_model, criterion, and optimizer
+    classify_model = ActionClassifier(INPUT_DIM, HIDDEN_DIM, OUTPUT_DIM, NUM_LAYERS).to(device)
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(classify_model.parameters(), lr=LEARNING_RATE)
+
+    # Train the classify_model
+    classify_model = train_model(classify_model, criterion, optimizer, train_loader, val_loader, NUM_EPOCHS, device, EARLY_STOP_PATIENCE)
+
+    # After training: save classify_model
+    torch.save(classify_model.state_dict(), classify_model_path)
+
+    return classify_model, keyframe
+
+def test_classifier(data, labels, keyframe, classify_model, device):
+    test_data_tensor = torch.tensor(data, dtype=torch.float32)
+    test_labels_tensor = torch.tensor(labels, dtype=torch.long)
+
+    test_dataset = TensorDataset(test_data_tensor, test_labels_tensor)
+    test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
+
+    accuracy = evaluate_model(classify_model, test_loader, device)
+    print(f'Accuracy on the test data: {accuracy:.2f}%')
+
+# ---------------------------- 分类器训练 & 测试函数 -----------------------------
+
+# save and load dictionary of models
+def save_models(models_dict, save_dir="saved_models"):
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+    for label, model in models_dict.items():
+        # 为了确保文件名不出现非法字符，我们使用repr函数
+        safe_label = repr(label)
+        torch.save(model.state_dict(), os.path.join(save_dir, f"model_{safe_label}.pt"))
+
+def load_models(unique_labels, save_dir="saved_models"):
+    models_dict = {}
+    for label in unique_labels:
+        # 使用之前的方式保持标签安全
+        safe_label = repr(label)
+        model = TrajectoryModel().to(device)
+        model.load_state_dict(torch.load(os.path.join(save_dir, f"model_{safe_label}.pt")))
+        models_dict[label] = model
+    return models_dict
+
+# generate predicted trajectory of given class and initial point
+def generate_trajectory(models_dict, label, start_point, device):
+    model = models_dict[label]
+    inputs = torch.tensor(start_point, dtype=torch.float32).unsqueeze(0).to(device)
+    predicted_trajectory = [start_point]
+    
+    for _ in range(229):
+        output = model(inputs)
+        predicted_trajectory.append(output.squeeze().cpu().detach().numpy())
+        inputs = output
+    
+    return np.array(predicted_trajectory).reshape(-1, 21, 3)
+
+def save_models(models_dict, save_dir="saved_models"):
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+    for label, model in models_dict.items():
+        # 为了确保文件名不出现非法字符，我们使用repr函数
+        safe_label = repr(label)
+        torch.save(model.state_dict(), os.path.join(save_dir, f"model_{safe_label}.pt"))
+
+def load_models(unique_labels, save_dir="saved_models"):
+    models_dict = {}
+    for label in unique_labels:
+        # 使用之前的方式保持标签安全
+        safe_label = repr(label)
+        model = TrajectoryModel().to(device)
+        model.load_state_dict(torch.load(os.path.join(save_dir, f"model_{safe_label}.pt")))
+        models_dict[label] = model
+    return models_dict
+
+def decoder(unique_labels, device, data_transformed):
+    models_dict = {label: TrajectoryModel().to(device) for label in unique_labels}
+    optimizers_dict = {label: optim.Adam(models_dict[label].parameters(), lr=0.001) for label in unique_labels}
+    criterion = nn.MSELoss().to(device)
+
+    for epoch in range(100):
+        for label in unique_labels:
+            loss_list = []  # 初始化每个label的loss列表
+            for i, data_label in enumerate(encoded_labels):
+                if data_label == label:
+                    model = models_dict[label]
+                    optimizer = optimizers_dict[label]
+                    
+                    inputs = torch.tensor(data_transformed[i][:-1], dtype=torch.float32).unsqueeze(0).to(device)
+                    targets = torch.tensor(data_transformed[i][1:], dtype=torch.float32).unsqueeze(0).to(device)
+                    outputs = model(inputs)
+                    loss = criterion(outputs, targets)
+
+                    optimizer.zero_grad()
+                    loss.backward()
+                    optimizer.step()
+                    
+                    loss_list.append(loss.item())
+
+            avg_loss = sum(loss_list) / len(loss_list) if loss_list else 0
+            print(f"Epoch {epoch + 1} - Label {label}, Avg Loss: {avg_loss:.4f}")
+
+    save_models(models_dict)
+    return models_dict
+
 # ---------------------------- 主函数 & 运行模型代码 -----------------------------
 
 if __name__ == "__main__":
     # Constants
-    INPUT_DIM = 34 * 2  # Assuming 17 keypoints and 2D coordinates
+    INPUT_DIM = 21 * 3  # Assuming 17 keypoints and 2D coordinates
     HIDDEN_DIM = 128
     NUM_LAYERS = 2
     NUM_EPOCHS = 50
@@ -404,56 +535,43 @@ if __name__ == "__main__":
     
     # GPU setup
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print("Using device:", device)
 
     # Load and preprocess data
-    directory = 'excel'
+    train_directory = 'excel'
+    train_data, labels, keyframe = preprocess_data(train_directory)
+    # use augmented train_data
+    train_data, labels = augment_data_and_labels(train_data, labels, times=15)
+    # training data for decoder. 230 is # key frame, 63 = # keypoint * 3 (3-dimensional information)
+    data_transformed = np.array(train_data).reshape(len(train_data), 230, 63)
 
-    data, labels, keyframe = preprocess_data(directory)
-    data, labels = augment_data_and_labels(data, labels, times=15)
-    train_data, val_data, train_labels, val_labels = split_data_for_training(data, labels)
-
-    # Encoding labels
+    # Encoding labels and save mapping directory
     unique_labels = set(labels)
-    label_to_int = {label: i for i, label in enumerate(unique_labels)}
-    int_to_label = {i: label for label, i in label_to_int.items()}
-    OUTPUT_DIM = len(label_to_int)  # Number of classes
-    # 打印编码情况
-    print(label_to_int)
+    label_to_encoded = {label: i for i, label in enumerate(unique_labels)}
+    encoded_to_label = {i: label for label, i in label_to_encoded.items()}
+    OUTPUT_DIM = len(label_to_encoded)  # Number of classes
+    print(label_to_encoded)
+    encoded_labels = [label_to_encoded[l] for l in labels]
+    save_label_dicts(label_to_encoded, encoded_to_label)
+    # loaded_label_to_encoded, loaded_encoded_to_label = load_label_dicts()
 
-    encoded_train_labels = [label_to_int[label] for label in train_labels]
-    encoded_val_labels = [label_to_int[label] for label in val_labels]
+    classify_model_path = "model_checkpoint.pth"
+    classify_model, keyframe = train_classifier(train_data, encoded_labels, classify_model_path)
 
-    # Convert data to tensor
-    train_data_tensor = torch.tensor(train_data, dtype=torch.float32)
-    train_labels_tensor = torch.tensor(encoded_train_labels, dtype=torch.long)
-    val_data_tensor = torch.tensor(val_data, dtype=torch.float32)
-    val_labels_tensor = torch.tensor(encoded_val_labels, dtype=torch.long)
-
-    # Create dataloaders
-    train_dataset = TensorDataset(train_data_tensor, train_labels_tensor)
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-
-    val_dataset = TensorDataset(val_data_tensor, val_labels_tensor)
-    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
-
-    # Initialize model, criterion, and optimizer
-    model = ActionClassifier(INPUT_DIM, HIDDEN_DIM, OUTPUT_DIM, NUM_LAYERS).to(device)
-    # model = ActionClassifier(INPUT_DIM, HIDDEN_DIM, OUTPUT_DIM, NUM_LAYERS)
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
-
-    # Train the model
-    model = train_model(model, criterion, optimizer, train_loader, val_loader, NUM_EPOCHS, device, EARLY_STOP_PATIENCE)
-
-    # Test the model
+    # Test the classify_model
     test_directory = 'data_test'
     test_data, test_labels = preprocess_data_test(test_directory, keyframe)
-    encoded_test_labels = [label_to_int[label] for label in test_labels]
-    test_data_tensor = torch.tensor(test_data, dtype=torch.float32)
-    test_labels_tensor = torch.tensor(encoded_test_labels, dtype=torch.long)
+    encoded_test_labels = [label_to_encoded[label] for label in test_labels]
 
-    test_dataset = TensorDataset(test_data_tensor, test_labels_tensor)
-    test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
+    test_classifier(test_data, encoded_test_labels, keyframe, classify_model, device)
 
-    accuracy = evaluate_model(model, test_loader, device)
-    print(f'Accuracy on the test data: {accuracy:.2f}%')
+    # train encoder
+    models_dict = decoder(unique_labels, device, data_transformed)
+    
+    # save model
+    # loaded_models_dict = load_models(unique_labels)
+
+    # predict trajectory
+    trajectory_label = 0  # 根据需要更改为其他标签
+    trajectory = generate_trajectory(models_dict, encoded_to_label[trajectory_label], data_transformed[0][0], device)
+    print(trajectory)
