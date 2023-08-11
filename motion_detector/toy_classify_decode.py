@@ -438,7 +438,7 @@ def test_classifier(data, labels, keyframe, classify_model, device):
     accuracy = evaluate_model(classify_model, test_loader, device)
     print(f'Accuracy on the test data: {accuracy:.2f}%')
 
-# ---------------------------- 分类器训练 & 测试函数 -----------------------------
+# ---------------------------- 解码器训练 & 测试函数 -----------------------------
 
 # save and load dictionary of models
 def save_models(models_dict, save_dir="saved_models"):
