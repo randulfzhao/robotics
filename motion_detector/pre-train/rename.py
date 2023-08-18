@@ -1,38 +1,61 @@
 import os
 import subprocess
-import count
+from util.func import count_files_in_directory
 
 def rename_files(original_name, append_string):
-    # 定义视频和csv文件的路径
+    """
+    Renames the given video and its associated CSV file by appending a given string to the original filename.
+    
+    Parameters:
+    - original_name (str): The original filename.
+    - append_string (str): The string to append to the filename.
+    """
+    
+    # Define paths for video and csv files
     video_path = os.path.join('vid', original_name)
     csv_path = os.path.join('excel', original_name.split('.')[0] + ".csv")
 
-    # 修改视频名
+    # Rename the video
     if os.path.exists(video_path):
         video_new_name_base = original_name.split('.')[0] + "_edited"
         video_new_name = video_new_name_base + "_" + append_string + "." + original_name.split('.')[1]
         video_new_path = os.path.join('vid', video_new_name)
         os.rename(video_path, video_new_path)
 
-    # 修改csv文件名
+    # Rename the csv file
     if os.path.exists(csv_path):
         csv_new_name = video_new_name_base + "_" + append_string + ".csv"
         csv_new_path = os.path.join('excel', csv_new_name)
         os.rename(csv_path, csv_new_path)
 
 def delete_file(file_name):
+    """
+    Deletes the specified video file and its associated CSV file.
+    
+    Parameters:
+    - file_name (str): The name of the file to delete.
+    """
     video_path = os.path.join('vid', file_name)
     csv_path = os.path.join('excel', file_name.split('.')[0] + ".csv")
 
+    # Delete video file
     if os.path.exists(video_path):
         os.remove(video_path)
-        print(f"视频 '{file_name}' 已删除.")
+        print(f"Video '{file_name}' has been deleted.")
 
+    # Delete CSV file
     if os.path.exists(csv_path):
         os.remove(csv_path)
-        print(f"CSV 文件 '{file_name.split('.')[0]}.csv' 已删除.")
+        print(f"CSV file '{file_name.split('.')[0]}.csv' has been deleted.")
 
 def play_video_with_default_player(video_path):
+    """
+    Plays the specified video using the default video player.
+    
+    Parameters:
+    - video_path (str): The path of the video to play.
+    """
+    # Determine play method based on OS
     if os.name == 'nt':  # for Windows
         os.startfile(video_path)
     else:
@@ -40,40 +63,49 @@ def play_video_with_default_player(video_path):
         subprocess.call([opener, video_path])
 
 def get_append_string():
+    """
+    Prompts the user to select or input an append string.
+    
+    Returns:
+    - str: The append string chosen or entered by the user.
+    """
     default_values = ["drinkWater", "reachOut", "getPhone"]
-    print("请选择一个值进行附加：")
+    print("Please choose a value to append:")
     for i, value in enumerate(default_values):
         print(f"{i+1}. {value}")
-    print(f"{len(default_values)+1}. 自定义输入")
+    print(f"{len(default_values)+1}. Custom input")
 
-    choice = int(input("请输入您的选择（数字）："))
+    choice = int(input("Enter your choice (number):"))
     if 1 <= choice <= len(default_values):
         return default_values[choice-1]
     elif choice == len(default_values) + 1:
-        return input("请输入自定义字符串：")
+        return input("Enter a custom string:")
     else:
-        print("无效选择。使用默认值 'drinkWater'.")
+        print("Invalid choice. Using default value 'drinkWater'.")
         return "drinkWater"
 
 def main():
-    print("开始执行 main 函数...")
+    """Main execution function that processes video files in the 'vid' directory."""
+    print("Starting main function execution...")
     for video_name in os.listdir('vid'):
+        # Only process files without the "_edited" tag
         if "_edited" not in video_name:
             video_path = os.path.join('vid', video_name)
             play_video_with_default_player(video_path)
 
-            print(f"视频 {video_name} 预览完毕!")
-            option = input("请选择操作：\n1. 重命名文件\n2. 删除文件\n输入选项（1或2）：")
+            print(f"Preview of video {video_name} is completed!")
+            option = input("Please choose an action:\n1. Rename file\n2. Delete file\nEnter option (1 or 2):")
 
+            # Rename or delete file based on user's choice
             if option == '1':
                 append_string = get_append_string()
                 rename_files(video_name, append_string)
             elif option == '2':
                 delete_file(video_name)
             else:
-                print("无效的选项!")
-    print("已完成全部重命名工作，结束 main 函数执行。Cong!")
-    count.count_files_in_directory()
+                print("Invalid choice!")
+    print("All renaming tasks have been completed, ending main function execution. Congrats!")
+    count_files_in_directory()  # Note: 'count_files_in_directory()' appears to be missing in the provided code. Ensure it's defined elsewhere in your code.
 
 
 if __name__ == "__main__":
