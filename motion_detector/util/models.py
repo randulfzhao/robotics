@@ -1,3 +1,4 @@
+# original models
 import os
 import ast
 import torch
@@ -305,3 +306,30 @@ class myUR5(Robot):
         """
         joint_positions = self.inverse_kinematics(point)
         self.set_joint_positions(joint_positions)
+
+    def move_by_v(self, angular_velocity, duration):
+        """
+        Set the angular velocity for each joint and move the robot accordingly.
+
+        Args:
+        - angular_velocity (dict): Target angular velocity for each joint.
+        - duration (float): Duration of the move in seconds.
+        """
+                # Convert the timestep from milliseconds to seconds.
+        delta_time = self.timestep / 1000.0
+        num_steps = int(duration / delta_time)
+        angular_velocity = np.array(angular_velocity)
+
+        # Get the current joint positions.
+        current_positions = self.get_pos()
+        current_positions = np.array(current_positions)
+
+        for _ in range(num_steps):
+            # Calculate new positions based on angular velocity and time increment.
+            current_positions += angular_velocity * delta_time
+
+            # Set the new joint positions.
+            self.set_joint_positions(current_positions)
+
+            # Update the current positions.
+            current_positions = current_positions

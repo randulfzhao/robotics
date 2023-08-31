@@ -491,7 +491,77 @@ def rs_initialize(depth_config = [640,480], color_config = [640,480]):
 
     return mp_drawing, mp_hands, pipeline
 
-def is_start_gesture(hand_landmarks, mp_hands, threshold=.1):
+# def is_start_gesture(hand_landmarks, source, threshold=.1):
+#     """
+#     Checks if the hand gesture corresponds to the "start" gesture.
+    
+#     Parameters:
+#     - hand_landmarks (object): Contains the landmark data for the hand.
+#     - threshold (float): The distance threshold to determine the start gesture.
+    
+#     Returns:
+#     - bool: True if the distance between thumb and index finger is less than the threshold, False otherwise.
+#     """
+    
+#     try:
+#         if hand_landmarks.landmark[source.THUMB_TIP].visibility>.5 and\
+#             hand_landmarks.landmark[source.INDEX_FINGER_TIP].visibility>.5 :
+#             # Extracting the x, y, z coordinates for the thumb tip
+#             thumb_tip = [hand_landmarks.landmark[source.THUMB_TIP].x,
+#                         hand_landmarks.landmark[source.THUMB_TIP].y,
+#                         hand_landmarks.landmark[source.THUMB_TIP].z]
+            
+#             # Extracting the x, y, z coordinates for the index finger tip
+#             index_finger_tip = [hand_landmarks.landmark[source.INDEX_FINGER_TIP].x,
+#                                 hand_landmarks.landmark[source.INDEX_FINGER_TIP].y,
+#                                 hand_landmarks.landmark[source.INDEX_FINGER_TIP].z]
+            
+#             # Calculating the euclidean distance between the thumb tip and index finger tip
+#             distance = np.sqrt(np.sum(np.square(np.subtract(thumb_tip, index_finger_tip))))
+
+#             # Return True if distance is less than threshold, indicating the start gesture
+#             return distance < threshold
+#         else:
+#             return False
+#     except:
+#         return False
+
+# def is_end_gesture(hand_landmarks, source, threshold=.1):
+#     """
+#     Checks if the hand gesture corresponds to the "end" gesture.
+    
+#     Parameters:
+#     - hand_landmarks (object): Contains the landmark data for the hand.
+#     - threshold (float): The distance threshold to determine the end gesture.
+    
+#     Returns:
+#     - bool: True if the distance between thumb and pinky finger is less than the threshold, False otherwise.
+#     """
+
+#     try:
+#         if hand_landmarks.landmark[source.THUMB_TIP].visibility>.5 and\
+#             hand_landmarks.landmark[source.PINKY_TIP].visibility>.5 :
+#             # Extracting the x, y, z coordinates for the thumb tip
+#             thumb_tip = [hand_landmarks.landmark[source.THUMB_TIP].x,
+#                         hand_landmarks.landmark[source.THUMB_TIP].y,
+#                         hand_landmarks.landmark[source.THUMB_TIP].z]
+            
+#             # Extracting the x, y, z coordinates for the pinky finger tip
+#             pinky_finger_tip = [hand_landmarks.landmark[source.PINKY_TIP].x,
+#                                 hand_landmarks.landmark[source.PINKY_TIP].y,
+#                                 hand_landmarks.landmark[source.PINKY_TIP].z]
+            
+#             # Calculating the euclidean distance between the thumb tip and pinky finger tip
+#             distance = np.sqrt(np.sum(np.square(np.subtract(thumb_tip, pinky_finger_tip))))
+
+#             # Return True if distance is less than threshold, indicating the end gesture
+#             return distance < threshold
+#         else:
+#             return False
+#     except:
+#         return False
+
+def is_start_gesture(hand_landmarks, source, threshold=.05):
     """
     Checks if the hand gesture corresponds to the "start" gesture.
     
@@ -503,23 +573,26 @@ def is_start_gesture(hand_landmarks, mp_hands, threshold=.1):
     - bool: True if the distance between thumb and index finger is less than the threshold, False otherwise.
     """
     
-    # Extracting the x, y, z coordinates for the thumb tip
-    thumb_tip = [hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_TIP].x,
-                 hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_TIP].y,
-                 hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_TIP].z]
-    
-    # Extracting the x, y, z coordinates for the index finger tip
-    index_finger_tip = [hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].x,
-                        hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].y,
-                        hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].z]
-    
-    # Calculating the euclidean distance between the thumb tip and index finger tip
-    distance = np.sqrt(np.sum(np.square(np.subtract(thumb_tip, index_finger_tip))))
+    try:
+        # Extracting the x, y, z coordinates for the thumb tip
+        thumb_tip = [hand_landmarks.landmark[source.THUMB_TIP].x,
+                    hand_landmarks.landmark[source.THUMB_TIP].y,
+                    hand_landmarks.landmark[source.THUMB_TIP].z]
+        
+        # Extracting the x, y, z coordinates for the index finger tip
+        index_finger_tip = [hand_landmarks.landmark[source.INDEX_FINGER_TIP].x,
+                            hand_landmarks.landmark[source.INDEX_FINGER_TIP].y,
+                            hand_landmarks.landmark[source.INDEX_FINGER_TIP].z]
+        
+        # Calculating the euclidean distance between the thumb tip and index finger tip
+        distance = np.sqrt(np.sum(np.square(np.subtract(thumb_tip, index_finger_tip))))
 
-    # Return True if distance is less than threshold, indicating the start gesture
-    return distance < threshold
+        # Return True if distance is less than threshold, indicating the start gesture
+        return distance < threshold
+    except:
+        return False
 
-def is_end_gesture(hand_landmarks, mp_hands, threshold=.1):
+def is_end_gesture(hand_landmarks, source, threshold=.05):
     """
     Checks if the hand gesture corresponds to the "end" gesture.
     
@@ -530,20 +603,80 @@ def is_end_gesture(hand_landmarks, mp_hands, threshold=.1):
     Returns:
     - bool: True if the distance between thumb and pinky finger is less than the threshold, False otherwise.
     """
-    
-    # Extracting the x, y, z coordinates for the thumb tip
-    thumb_tip = [hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_TIP].x,
-                 hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_TIP].y,
-                 hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_TIP].z]
-    
-    # Extracting the x, y, z coordinates for the pinky finger tip
-    pinky_finger_tip = [hand_landmarks.landmark[mp_hands.HandLandmark.PINKY_TIP].x,
-                        hand_landmarks.landmark[mp_hands.HandLandmark.PINKY_TIP].y,
-                        hand_landmarks.landmark[mp_hands.HandLandmark.PINKY_TIP].z]
-    
-    # Calculating the euclidean distance between the thumb tip and pinky finger tip
-    distance = np.sqrt(np.sum(np.square(np.subtract(thumb_tip, pinky_finger_tip))))
 
-    # Return True if distance is less than threshold, indicating the end gesture
-    return distance < threshold
+    try:
+        # Extracting the x, y, z coordinates for the thumb tip
+        thumb_tip = [hand_landmarks.landmark[source.THUMB_TIP].x,
+                    hand_landmarks.landmark[source.THUMB_TIP].y,
+                    hand_landmarks.landmark[source.THUMB_TIP].z]
+        
+        # Extracting the x, y, z coordinates for the pinky finger tip
+        pinky_finger_tip = [hand_landmarks.landmark[source.PINKY_TIP].x,
+                            hand_landmarks.landmark[source.PINKY_TIP].y,
+                            hand_landmarks.landmark[source.PINKY_TIP].z]
+        
+        # Calculating the euclidean distance between the thumb tip and pinky finger tip
+        distance = np.sqrt(np.sum(np.square(np.subtract(thumb_tip, pinky_finger_tip))))
 
+        # Return True if distance is less than threshold, indicating the end gesture
+        return distance < threshold
+    except:
+        return False
+
+# def is_start_gesture(pose_landmarks, threshold=0.2):
+#     """
+#     Checks if the left arm posture corresponds to the "start" gesture (straight arm).
+    
+#     Parameters:
+#     - pose_landmarks (object): Contains the landmark data for the pose.
+#     - threshold (float): The ratio threshold to determine the start gesture.
+    
+#     Returns:
+#     - bool: True if the left wrist is close to right shoulder, False otherwise.
+#     """
+#     if not pose_landmarks or not hasattr(pose_landmarks, "landmark"):
+#         return False
+    
+#     visibility1 = pose_landmarks.landmark[15].visibility>.8
+#     visibility2 = pose_landmarks.landmark[12].visibility>.8
+
+#     # Extracting the coordinates for the left wrist, elbow, and shoulder
+#     left_wrist = [pose_landmarks.landmark[15].x,
+#              pose_landmarks.landmark[15].y,
+#              pose_landmarks.landmark[15].z]
+#     right_shoulder = [pose_landmarks.landmark[12].x,
+#                 pose_landmarks.landmark[12].y,
+#                 pose_landmarks.landmark[12].z]
+
+#     dist = np.sqrt(np.sum(np.square(np.subtract(left_wrist, right_shoulder))))
+
+#     # If the two distances are roughly the same (ratio close to 1), the arm is straight
+#     return (dist < threshold) and visibility1 and visibility2 
+
+# def is_end_gesture(pose_landmarks, threshold=0.2):
+#     """
+#     Checks if the left arm posture corresponds to the "end" gesture (bent arm).
+    
+#     Parameters:
+#     - pose_landmarks (object): Contains the landmark data for the pose.
+#     - threshold (float): The ratio threshold to determine the end gesture.
+    
+#     Returns:
+#     - bool: True if the right wrist is close to left shoulder, False otherwise.
+#     """
+#     if not pose_landmarks or not hasattr(pose_landmarks, "landmark"):
+#         return False
+#     visibility1 = pose_landmarks.landmark[16].visibility>.8
+#     visibility2 = pose_landmarks.landmark[11].visibility>.8
+#     # Using the same logic as in the is_start_gesture function
+#     right_wrist = [pose_landmarks.landmark[16].x,
+#              pose_landmarks.landmark[16].y,
+#              pose_landmarks.landmark[16].z]
+#     left_shoulder = [pose_landmarks.landmark[11].x,
+#                 pose_landmarks.landmark[11].y,
+#                 pose_landmarks.landmark[11].z]
+
+#     dist = np.sqrt(np.sum(np.square(np.subtract(right_wrist, left_shoulder))))
+
+#     # If the two distances are roughly the same (ratio close to 1), the arm is straight
+#     return dist < threshold and visibility1 and visibility2 

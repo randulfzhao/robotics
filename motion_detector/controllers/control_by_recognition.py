@@ -22,6 +22,28 @@ from torch.utils.data import TensorDataset, DataLoader
 # Local application/library specific imports
 from util.models import *
 from util.func import *
+import threading
+
+def classify_and_predict(df, num_keyframe, loaded_classifier, loaded_models_dict, loaded_encoded_to_label, device, arm):
+    df = process_current_df(df, num_keyframe)
+    initial_point = df[0]
+    initial_point = np.array(initial_point).ravel()
+
+    # Classify the action using the loaded classifier
+    data_tensor = torch.tensor(df, dtype=torch.float32).to(device)
+    data_tensor = data_tensor.unsqueeze(0)
+    with torch.no_grad():
+        outputs = loaded_classifier(data_tensor)
+        predicted_class = torch.argmax(outputs, dim=1).item()   
+
+    print(f"Predicted class for the action trajectory: {predicted_class}")
+    
+    # Predict the trajectory for robotic arm movements based on the classified action
+    trajectory = TrajectoryModel.generate_trajectory(loaded_models_dict, loaded_encoded_to_label[predicted_class], initial_point, device)
+
+    new_traj = [i[0] for i in trajectory]
+    for point in new_traj:
+        arm.move_to_point(point)
 
 """
 基于规则的方法：
@@ -126,25 +148,11 @@ with mp_hands.Hands(min_detection_confidence=0.5, min_tracking_confidence=0.5) a
                         out.release()
                         df = pd.DataFrame(df_list)
                         df.to_csv(f'excel/{filename}.csv', index=False)
-                        df = process_current_df(df, num_keyframe)
-                        initial_point = df[0]
-                        initial_point = np.array(initial_point).ravel()
+                        thread = threading.Thread(target=classify_and_predict, 
+                                                    args=(df, num_keyframe, loaded_classifier, loaded_models_dict, 
+                                                    loaded_encoded_to_label, device, arm))
+                        thread.start()
 
-                        # Classify the action using the loaded classifier
-                        data_tensor = torch.tensor(df, dtype=torch.float32).to(device)
-                        data_tensor = data_tensor.unsqueeze(0)
-                        with torch.no_grad():
-                            outputs = loaded_classifier(data_tensor)
-                            predicted_class = torch.argmax(outputs, dim=1).item()   
-
-                        print(f"Predicted class for the action trajectory: {predicted_class}")
-                        
-                        # Predict the trajectory for robotic arm movements based on the classified action
-                        trajectory = TrajectoryModel.generate_trajectory(loaded_models_dict, loaded_encoded_to_label[predicted_class], initial_point, device)
-
-                        new_traj = [i[0] for i in trajectory]
-                        for point in new_traj:
-                            arm.move_to_point(point)
 
                     # Reset recording flags
                     recording = False
